@@ -25,15 +25,8 @@ class Home extends React.Component {
       return <Redirect to="/login"></Redirect>;
     }
 
-    return (
-      <div className="container">
-        <h2>Welcome {this.props.user.email}!</h2>
-        <div className="inner">
-          <button onClick={handleSignOut}> Sign Out </button>
-        </div>
-      </div>
-    );
-  }
-}
+    return <Redirect to="/logged-in-home.html"></Redirect>;
+    }    
+    }
 
 export default withAuth(Home);

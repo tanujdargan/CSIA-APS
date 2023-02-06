@@ -1,4 +1,5 @@
 import math
+import os
 import time
 
 import cv2
@@ -178,15 +179,13 @@ class VideoFrameHandler:
                     plot_text(frame, "WAKE UP! WAKE UP", ALM_txt_pos, self.state_tracker["COLOR"])
                     time.sleep(1)
                     self.count_drowsy += 1
-                    with open("user_id.txt", "r") as f:
-                        user_id = f.read()
-                    with open("email.txt", "r") as f:
-                        email = f.read()
-                    variable_location = db.child("users").child(user_id).child("drowsy_count")
-                    email_location = db.child("users").child(user_id).child("email")
-                    variable_location.set(self.count_drowsy)
-                    email_location.set(email)
-
+                    if os.environ.get("logged_in") == True:
+                        user_id = os.environ.get("user_id")
+                        email = os.environ.get("email")
+                        variable_location = db.child("users").child(user_id).child("drowsy_count")
+                        email_location = db.child("users").child(user_id).child("email")
+                        variable_location.set(self.count_drowsy)
+                        email_location.set(email)
 
             else:
                 self.state_tracker["start_time"] = time.perf_counter()

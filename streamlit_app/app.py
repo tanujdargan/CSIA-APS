@@ -12,6 +12,7 @@ from drowsy_detection import VideoFrameHandler
 
 # Define the audio file to use.
 alarm_file_path = os.path.join("audio", "wake_up.wav")
+logged_in = False
 
 # Streamlit Components
 st.set_page_config(
@@ -105,10 +106,9 @@ if menu_choice == "Login":
             menu_choice = "Home"
             user_id = auth.get_account_info(login["idToken"])["users"][0]["localId"]
             email = auth.get_account_info(login["idToken"])["users"][0]["email"]
-            with open("user_id.txt", "w") as f:
-                f.write(user_id)
-            with open("email.txt", "w") as f:
-                f.write(email)
+            os.environ["email"] = email
+            os.environ["user_id"] = user_id
+            os.environ["logged_in"] = "True"
         except:
             st.error("Invalid email or password")
     

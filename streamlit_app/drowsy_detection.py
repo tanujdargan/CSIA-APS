@@ -1,11 +1,13 @@
-import math
 import os
 import time
+from math import hypot
 
 import cv2
+import dlib
 import mediapipe as mp
 import numpy as np
 import pyrebase
+from imutils import face_utils
 from mediapipe.python.solutions.drawing_utils import \
     _normalized_to_pixel_coordinates as denormalize_coordinates
 from scipy.spatial import distance as dist
@@ -22,6 +24,10 @@ config = {"apiKey": "AIzaSyBzAOFDCn0D4CJCMqfwwQrnuTltMKZowDw",
 firebase = pyrebase.initialize_app(config)
 db = firebase.database()
 
+print("-> Loading the predictor and detector...")
+detector = cv2.CascadeClassifier("./haarcascade_frontalface_default.xml")    #Faster but less accurate
+predictor = dlib.shape_predictor('./shape_predictor_68_face_landmarks.dat')
+
 def get_mediapipe_app(
     max_num_faces=1,
     refine_landmarks=True,
@@ -37,7 +43,6 @@ def get_mediapipe_app(
     )
 
     return face_mesh
-
 
 def distance(point_1, point_2):
     """Calculate l2-norm between two points"""
@@ -101,6 +106,20 @@ def plot_eye_landmarks(frame, left_lm_coordinates, right_lm_coordinates, color):
     frame = cv2.flip(frame, 1)
     return frame
 
+def lip_distance(shape):
+    top_lip = shape[50:53]
+    top_lip = np.concatenate((top_lip, shape[61:64]))
+
+    low_lip = shape[56:59]
+    low_lip = np.concatenate((low_lip, shape[65:68]))
+
+    top_mean = np.mean(top_lip, axis=0)
+    low_mean = np.mean(low_lip, axis=0)
+
+    distance = abs(top_mean[1] - low_mean[1])
+    return distance
+
+
 def plot_text(image, text, origin, color, font=cv2.FONT_HERSHEY_SIMPLEX, fntScale=0.8, thickness=2):
     image = cv2.putText(image, text, origin, font, fntScale, color, thickness)
     return image
@@ -113,6 +132,7 @@ class VideoFrameHandler:
         """
         # Left and right eye chosen landmarks.
         self.count_drowsy = 0
+        self.count_yawn = 0
         self.eye_idxs = {
             "left": [362, 385, 387, 263, 373, 380],
             "right": [33, 160, 158, 133, 153, 144],
@@ -158,12 +178,42 @@ class VideoFrameHandler:
         DROWSY_TIME_txt_pos = (10, int(frame_h // 2 * 1.7))
         ALM_txt_pos = (10, int(frame_h // 2 * 1.85))
 
+        frame = cv2.flip(frame, 1)
         results = self.facemesh_model.process(frame)
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        rects = detector.detectMultiScale(gray, scaleFactor=1.1, 
+        minNeighbors=5, minSize=(30, 30),
+        flags=cv2.CASCADE_SCALE_IMAGE)
+        for (x, y, w, h) in rects:
+            rect = dlib.rectangle(int(x), int(y), int(x + w),int(y + h))
+                    
+            shape = predictor(gray, rect)
+            shape = face_utils.shape_to_np(shape) 
+                    
+            distance = lip_distance(shape) 
+            lip = shape[48:60]
+            cv2.drawContours(frame, [lip], -1, (0, 255, 0), 1)
+            if (distance > thresholds["LIP_THRESH"]):
+                plot_text(frame, "Yawn Alert", (460, 440), (0, 0, 255))
+                time.sleep(1)
+                self.count_yawn += 1
+                if os.environ.get("logged_in") == True:
+                    user_id = os.environ.get("user_id")
+                    email = os.environ.get("email")
+                    variable_location = db.child("users").child(user_id).child("yawn_count")
+                    email_location = db.child("users").child(user_id).child("email")
+                    variable_location.set(self.count_yawn)
+                    email_location.set(email)
+        frame = plot_text(frame, f"Yawn count: {self.count_yawn}",(420,410), color=(0, 255, 0), thickness=2)
+        frame = cv2.flip(frame, 1)
+
+
 
         if results.multi_face_landmarks:
             landmarks = results.multi_face_landmarks[0].landmark
             EAR, coordinates = calculate_avg_ear(landmarks, self.eye_idxs["left"], self.eye_idxs["right"], frame_w, frame_h)
             frame = plot_eye_landmarks(frame, coordinates[0], coordinates[1], self.state_tracker["COLOR"])
+            
             if EAR < thresholds["EAR_THRESH"]:
 
                 # Increase DROWSY_TIME to track the time period with EAR less than the threshold
@@ -172,7 +222,7 @@ class VideoFrameHandler:
 
                 self.state_tracker["DROWSY_TIME"] += end_time - self.state_tracker["start_time"]
                 self.state_tracker["start_time"] = end_time
-                self.state_tracker["COLOR"] = self.RED
+                self.state_tracker["COLOR"] = self.RED              
 
                 if self.state_tracker["DROWSY_TIME"] >= thresholds["WAIT_TIME"]:
                     self.state_tracker["play_alarm"] = True

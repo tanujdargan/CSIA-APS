@@ -46,19 +46,26 @@ auth = firebase.auth()
 if menu_choice == "Home":
     st.title("Drowsiness Detection")
     with st.container():
-        c1, c2 = st.columns(spec=[1, 1])
+        c1, c2, c3 = st.columns(spec=[1, 1, 1])
         with c1:
             # The amount of time (in seconds) to wait before sounding the alarm.
-            WAIT_TIME = st.slider("Seconds to wait before sounding alarm:", 0.0, 5.0, 1.0, 0.25)
+            WAIT_TIME = st.slider("Time to wait before sounding alarm:", 0.0, 5.0, 1.0, 0.25)
 
         with c2:
             # Lowest valid value of Eye Aspect Ratio. Ideal values [0.15, 0.2].
             EAR_THRESH = st.slider("Eye Aspect Ratio threshold:", 0.0, 0.4, 0.18, 0.01)
+        
+        with c3:
+            # Lip threshold to detect yawning
+            LIP_THRESH = st.slider("Lip threshold:", 0.0, 0.4, 0.2, 0.01)
+            LIP_THRESH = LIP_THRESH*100
 
     thresholds = {
         "EAR_THRESH": EAR_THRESH,
-        "WAIT_TIME": WAIT_TIME
+        "WAIT_TIME": WAIT_TIME, 
+        "LIP_THRESH": LIP_THRESH
     }
+
 
     # For streamlit-webrtc
     video_handler = VideoFrameHandler()
@@ -88,7 +95,7 @@ if menu_choice == "Home":
         video_frame_callback=video_frame_callback,
         audio_frame_callback=audio_frame_callback,
         rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},  # Add this to config for cloud deployment.
-        media_stream_constraints={"video": {"height": {"ideal": 480}}, "audio": False},
+        media_stream_constraints={"video": {"height": {"ideal": 480}}, "audio": True},
         video_html_attrs=VideoHTMLAttributes(autoPlay=True, controls=False, muted=False),
     )
 

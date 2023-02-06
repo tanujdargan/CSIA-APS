@@ -1,11 +1,25 @@
+import math
 import time
 
 import cv2
 import mediapipe as mp
 import numpy as np
+import pyrebase
 from mediapipe.python.solutions.drawing_utils import \
     _normalized_to_pixel_coordinates as denormalize_coordinates
+from scipy.spatial import distance as dist
 
+config = {"apiKey": "AIzaSyBzAOFDCn0D4CJCMqfwwQrnuTltMKZowDw",
+  "authDomain": "csia-5825d.firebaseapp.com",
+  "databaseURL": "https://csia-5825d-default-rtdb.asia-southeast1.firebasedatabase.app/",
+  "projectId": "csia-5825d",
+  "storageBucket": "csia-5825d.appspot.com",
+  "messagingSenderId": "144604127326",
+  "appId": "1:144604127326:web:d63d822a8327f708e154cf",
+  "measurementId": "G-ENG9V1LE8C"}
+
+firebase = pyrebase.initialize_app(config)
+db = firebase.database()
 
 def get_mediapipe_app(
     max_num_faces=1,
@@ -86,7 +100,6 @@ def plot_eye_landmarks(frame, left_lm_coordinates, right_lm_coordinates, color):
     frame = cv2.flip(frame, 1)
     return frame
 
-
 def plot_text(image, text, origin, color, font=cv2.FONT_HERSHEY_SIMPLEX, fntScale=0.8, thickness=2):
     image = cv2.putText(image, text, origin, font, fntScale, color, thickness)
     return image
@@ -165,6 +178,15 @@ class VideoFrameHandler:
                     plot_text(frame, "WAKE UP! WAKE UP", ALM_txt_pos, self.state_tracker["COLOR"])
                     time.sleep(1)
                     self.count_drowsy += 1
+                    with open("user_id.txt", "r") as f:
+                        user_id = f.read()
+                    with open("email.txt", "r") as f:
+                        email = f.read()
+                    variable_location = db.child("users").child(user_id).child("drowsy_count")
+                    email_location = db.child("users").child(user_id).child("email")
+                    variable_location.set(self.count_drowsy)
+                    email_location.set(email)
+
 
             else:
                 self.state_tracker["start_time"] = time.perf_counter()
